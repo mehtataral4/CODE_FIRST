@@ -1,0 +1,269 @@
+/* main.ino */
+
+#define DATA_PORTS 4
+#define CONF_PORTS 10
+
+#define A_PORT  2
+#define B_PORT  3
+#define C_PORT  4
+#define D_PORT  5
+#define LT_PORT 6
+#define BI_PORT 7
+#define LE_PORT 8
+#define DP_PORT 9
+#define K1_PORT 10
+#define K2_PORT 11
+
+#define BTN_1 12
+#define BTN_2 A0
+#define BTN_3 A1
+
+int confPorts[CONF_PORTS] =
+{
+   A_PORT,
+   B_PORT,
+   C_PORT,
+   D_PORT,
+   LT_PORT,
+   BI_PORT,
+   LE_PORT,
+   DP_PORT,
+   K1_PORT,
+   K2_PORT
+};
+
+int controlPorts7Seg[DATA_PORTS] = { D_PORT , C_PORT , B_PORT , A_PORT };
+
+int outputs7Seg[10][DATA_PORTS] = 
+{
+//D,C,B,A
+ {0,0,0,0}, // 0
+ {0,0,0,1}, // 1
+ {0,0,1,0}, // 2
+ {0,0,1,1}, // 3
+ {0,1,0,0}, // 4
+ {0,1,0,1}, // 5
+ {0,1,1,0}, // 6
+ {0,1,1,1}, // 7
+ {1,0,0,0}, // 8
+ {1,0,0,1}  // 9
+};
+
+void setup()
+{
+   Serial.begin(9600);
+// Config output ports
+   for( int i = 0 ; i < CONF_PORTS ; i++)
+   {
+      pinMode( confPorts[i] , OUTPUT );
+      if( confPorts[i] == BI_PORT || confPorts[i] == DP_PORT )
+      {
+   digitalWrite( confPorts[i] , LOW );
+      }
+      else
+      {
+   digitalWrite( confPorts[i] , HIGH );
+      }
+   }
+   pinMode( LED_BUILTIN , OUTPUT );
+   digitalWrite( LED_BUILTIN , LOW );
+   // Config input ports
+   pinMode( BTN_1 , INPUT);
+   pinMode( BTN_2 , INPUT);
+   pinMode( BTN_3 , INPUT);
+}
+
+int contU = 0; // Data 7 segement right
+int contD = 0; // Data 7 segment left
+
+int btnSet=0; // functions button 1
+int btnChange = 0; // functions button 2
+
+bool btnCount = false; // Countdown function button 1
+bool enableCount = true; // enable countdown
+bool enableBlink = false; // Enable blink
+
+long long int time = 0;	// Select Function time
+long long int timeCount = 0; // CountDown time
+long long int timeBlink = 0; // Blink time
+
+void loop()
+{
+   if( millis() - time > 250)
+   {
+      time = millis();
+      
+      if ( digitalRead(BTN_1) == 0 && btnChange == 0 )
+      {
+        ++btnSet;
+        
+        if( btnSet > 3 ) btnSet = 0;
+   
+        if( btnSet == 1)
+        {
+          digitalWrite( LT_PORT , 0 );
+          digitalWrite( BI_PORT , 0 );
+          digitalWrite( LE_PORT , 0 );
+          digitalWrite( DP_PORT , 0 );
+        }
+        else if( btnSet == 2 )
+        {
+          digitalWrite( LT_PORT , 1 );
+          digitalWrite( BI_PORT , 0 );
+          digitalWrite( LE_PORT , 0 );
+          digitalWrite( DP_PORT , 0 );
+        }
+        else if ( btnSet == 3 )
+        {
+          digitalWrite( LT_PORT , 1 );
+          digitalWrite( BI_PORT , 0 );
+          digitalWrite( LE_PORT , 0 );
+          digitalWrite( DP_PORT , 1 );
+        }
+        else
+        {
+          digitalWrite( LT_PORT , 1 );
+          digitalWrite( BI_PORT , 0 );
+          digitalWrite( LE_PORT , 0 );
+          digitalWrite( DP_PORT , 0 );
+        }
+      }
+      if ( digitalRead(BTN_1) == 0 && btnChange != 0 )  //START AND STOP FUNCTION_BUTTON1
+      {
+	 digitalWrite( DP_PORT , 0 );
+	 btnSet = 4 ;
+	 btnCount = !btnCount;
+	 static bool stateLED = HIGH;
+	 digitalWrite( LED_BUILTIN , stateLED );
+      }
+      
+      if ( digitalRead(BTN_2) == 0 &&  btnSet == 3 ) //OPTION SELECTION USING BUTTON2
+      {
+        ++btnChange;
+        if( btnChange >= 7) btnChange = 1;
+        functionButton2( btnChange );
+      } 
+      if ( digitalRead(BTN_3) == 0  && contU == 0 && contD == 0)    /// LED BLINK EVERY TIME
+      {
+	 enableBlink = !enableBlink;
+      }     
+  }
+  if( btnCount && enableCount && (millis() - timeCount >= 500))
+  {
+    timeCount = millis();
+    countD();
+  }
+  
+  if( enableBlink && (millis() - timeBlink >= 500))
+  {
+      static bool stateLED = HIGH;
+      timeBlink = millis();
+      digitalWrite( LED_BUILTIN , stateLED );
+      stateLED = !stateLED;
+  }    
+  showDisplay(); 
+}
+
+
+void functionButton2( int _code )
+{
+   digitalWrite( LT_PORT , 1 );
+   digitalWrite( BI_PORT , 1 );
+   digitalWrite( LE_PORT , 0 );
+
+   contU = (_code * 5) % 10 ;
+   contD = ( ( _code * 5 ) - contU ) / 10;
+   
+   
+   for( int j = 0 ; j < 2 ; j++)   
+   {      
+      for( int i = 0 ; i < DATA_PORTS ; i++)
+      {
+   if( j == 0 )
+   {
+      digitalWrite( K1_PORT , 1);
+      digitalWrite( K2_PORT , 0);
+      digitalWrite( controlPorts7Seg[i] , outputs7Seg[contD][i] );
+     // Serial.println(outputs7Seg[contD][i] );
+      }
+   else
+   {
+      digitalWrite( K1_PORT , 0);
+      digitalWrite( K2_PORT , 1);
+      digitalWrite( controlPorts7Seg[i] , outputs7Seg[contU][i] );
+      //Serial.println(outputs7Seg[contU][i]);
+   }
+      }
+      delay(10);
+   }
+}
+
+void countD()
+{
+   for( int j = 0 ; j < 2 ; j++)   
+   {      
+      for( int i = 0 ; i < DATA_PORTS ; i++)
+      {
+   if( j == 0 )
+   {
+      digitalWrite( K1_PORT , 1);
+      digitalWrite( K2_PORT , 0);
+      digitalWrite( controlPorts7Seg[i] , outputs7Seg[contD][i] );
+      Serial.println(controlPorts7Seg[i] );
+   }
+   else
+   {
+      digitalWrite( K1_PORT , 0);
+      digitalWrite( K2_PORT , 1);
+      digitalWrite( controlPorts7Seg[i] , outputs7Seg[contU][i] );
+      Serial.println(controlPorts7Seg[i] );
+   }
+      }
+      delay(10);
+   }
+   
+   if( contU == 0 && contD == 0 )
+   {
+      enableCount = false;
+   }
+   if( enableCount && contU-- == 0)
+   {
+      contD--;
+      contU = 9;
+   Serial.println(contU);
+
+   //if( enableBlink && (millis() - timeBlink >= 500))
+  //{
+    //  static bool stateLED = HIGH;
+    //  timeBlink = millis();
+      //digitalWrite( LED_BUILTIN , stateLED );
+      //stateLED = !stateLED;
+  //}   
+ 
+
+ 
+   }
+}
+
+void showDisplay()
+{
+   for( int j = 0 ; j < 2 ; j++)   
+   {      
+      for( int i = 0 ; i < DATA_PORTS ; i++)
+      {
+   if( j == 0 )
+   {
+      digitalWrite( K1_PORT , 1);
+      digitalWrite( K2_PORT , 0);
+      digitalWrite( controlPorts7Seg[i] , outputs7Seg[contD][i] );
+   }
+   else
+   {
+      digitalWrite( K1_PORT , 0);
+      digitalWrite( K2_PORT , 1);
+	 digitalWrite( controlPorts7Seg[i] , outputs7Seg[contU][i] );
+   }
+      }
+      delay(10);
+   }
+}
